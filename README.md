@@ -44,10 +44,6 @@ GitGrade is an intelligent tool that analyzes GitHub repositories to provide ins
 
 5.  Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## 📸 Demo
-
-*(Add a screenshot here later if you have time, otherwise delete this line)*
-
 ## 📄 License
 
 MIT
