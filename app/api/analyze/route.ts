@@ -12,11 +12,12 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // ✅ USING YOUR PREFERRED MODEL
+    // Using 2.5-flash with JSON enforcement
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash", 
       generationConfig: {
-        temperature: 0.1, // Keep it low for consistent JSON
+        temperature: 0.1, 
+        responseMimeType: "application/json" // This forces strict JSON
       },
     });
 
@@ -24,16 +25,17 @@ export async function POST(req: Request) {
     Analyze this GitHub repository: ${repoUrl}.
     Act as a strict Senior Code Reviewer.
     
-    Return a STRICT JSON object with this structure:
+    You must return a JSON object with the following structure. Do not include markdown formatting.
+    
     {
       "scores": {
         "quality": (number 0-100),
         "security": (number 0-100),
         "performance": (number 0-100)
       },
-      "summary": "Short critique.",
-      "strengths": ["Point 1", "Point 2"],
-      "weaknesses": ["Point 1", "Point 2"],
+      "summary": "A 2-sentence executive summary of the code quality.",
+      "strengths": ["Strength 1", "Strength 2"],
+      "weaknesses": ["Weakness 1", "Weakness 2"],
       "roadmap": ["Step 1", "Step 2", "Step 3"]
     }
     `;
@@ -42,19 +44,11 @@ export async function POST(req: Request) {
     const response = await result.response;
     const text = response.text();
 
-    console.log("🤖 Raw AI Response:", text);
+    console.log("🤖 Raw AI Response:", text); // Check Vercel Logs if this fails
 
-    // *** THE MAGIC FIX ***
-    // This finds the JSON inside the text, even if the AI adds backticks or markdown
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    
-    if (!jsonMatch) {
-      throw new Error("AI did not return a valid JSON object");
-    }
-
-    // Parse only the clean JSON part
-    const cleanJson = jsonMatch[0];
-    const data = JSON.parse(cleanJson);
+    // Cleanup: Remove any markdown backticks if they sneak in
+    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleanText);
 
     return NextResponse.json(data);
 
