@@ -12,11 +12,11 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Switch to 'gemini-1.5-flash' - it is currently the most stable model for this
+    // ✅ USING YOUR PREFERRED MODEL
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash", 
       generationConfig: {
-        temperature: 0.1, // Strict mode
+        temperature: 0.1, // Keep it low for consistent JSON
       },
     });
 
@@ -24,14 +24,14 @@ export async function POST(req: Request) {
     Analyze this GitHub repository: ${repoUrl}.
     Act as a strict Senior Code Reviewer.
     
-    Return a STRICT JSON object (no markdown, no backticks) with this structure:
+    Return a STRICT JSON object with this structure:
     {
       "scores": {
         "quality": (number 0-100),
         "security": (number 0-100),
         "performance": (number 0-100)
       },
-      "summary": "Short executive summary.",
+      "summary": "Short critique.",
       "strengths": ["Point 1", "Point 2"],
       "weaknesses": ["Point 1", "Point 2"],
       "roadmap": ["Step 1", "Step 2", "Step 3"]
@@ -40,21 +40,26 @@ export async function POST(req: Request) {
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    let text = response.text();
+    const text = response.text();
 
-    // *** CRITICAL FIX: Strip Markdown formatting ***
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    console.log("🤖 Raw AI Response:", text);
 
-    try {
-      const json = JSON.parse(text);
-      return NextResponse.json(json);
-    } catch (parseError) {
-      console.error("JSON Parse Error:", text);
-      return NextResponse.json({ error: "AI returned invalid format" }, { status: 500 });
+    // *** THE MAGIC FIX ***
+    // This finds the JSON inside the text, even if the AI adds backticks or markdown
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      throw new Error("AI did not return a valid JSON object");
     }
 
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: "Failed to analyze repo" }, { status: 500 });
+    // Parse only the clean JSON part
+    const cleanJson = jsonMatch[0];
+    const data = JSON.parse(cleanJson);
+
+    return NextResponse.json(data);
+
+  } catch (error: any) {
+    console.error("🔥 Analysis Error:", error.message);
+    return NextResponse.json({ error: "Failed to analyze repository." }, { status: 500 });
   }
 }
