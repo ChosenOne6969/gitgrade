@@ -12,12 +12,11 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Low temperature for consistent grading
+    // Switch to 'gemini-1.5-flash' - it is currently the most stable model for this
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
+        temperature: 0.1, // Strict mode
       },
     });
 
@@ -25,27 +24,37 @@ export async function POST(req: Request) {
     Analyze this GitHub repository: ${repoUrl}.
     Act as a strict Senior Code Reviewer.
     
-    Return a STRICT JSON object with this exact structure:
+    Return a STRICT JSON object (no markdown, no backticks) with this structure:
     {
       "scores": {
-        "quality": (number 0-100, based on cleanliness/DRY),
-        "security": (number 0-100, based on safety/secrets),
-        "performance": (number 0-100, based on efficiency)
+        "quality": (number 0-100),
+        "security": (number 0-100),
+        "performance": (number 0-100)
       },
-      "summary": "2 sentence executive summary of the code quality.",
+      "summary": "Short executive summary.",
       "strengths": ["Point 1", "Point 2"],
       "weaknesses": ["Point 1", "Point 2"],
-      "roadmap": ["Actionable step 1", "Actionable step 2", "Actionable step 3"]
+      "roadmap": ["Step 1", "Step 2", "Step 3"]
     }
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    
-    return NextResponse.json(JSON.parse(responseText));
+    const response = await result.response;
+    let text = response.text();
+
+    // *** CRITICAL FIX: Strip Markdown formatting ***
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    try {
+      const json = JSON.parse(text);
+      return NextResponse.json(json);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", text);
+      return NextResponse.json({ error: "AI returned invalid format" }, { status: 500 });
+    }
 
   } catch (error) {
-    console.error(error);
+    console.error("API Error:", error);
     return NextResponse.json({ error: "Failed to analyze repo" }, { status: 500 });
   }
 }
